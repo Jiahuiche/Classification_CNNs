@@ -19,7 +19,7 @@ start_time = time.time()
 torch.manual_seed(123)
 random.seed(123)
 np.random.seed(123)
-max_total_time = 1200 
+max_total_time = 1800 
 # ---------- Model ----------
 class ElVostreModel(nn.Module):
     def __init__(self, num_classes):
@@ -29,17 +29,24 @@ class ElVostreModel(nn.Module):
             nn.Conv2d(1, 32, kernel_size=3, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-
-            # Bloque 2: 14×14 → 7×7
             nn.Conv2d(32, 64, kernel_size=3, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
+            # Bloque 2: 14×14 → 7×7
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(128, 256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+
             # Full Connection
             nn.Flatten(),
-            nn.Linear(3136, 256),
+            nn.Linear(2304, 256),
             nn.BatchNorm1d(256),
             nn.ReLU(),
             nn.Dropout(0.5),  # Dropout para evitar overfitting
@@ -86,13 +93,12 @@ if __name__ == '__main__':
     # Transforma para entrenamiento (con data augmentation)
     train_transform = transforms.Compose([
         transforms.Grayscale(num_output_channels=1),
-        transforms.RandomRotation(15),
         # Más variedad en traslación y escala
         transforms.RandomAffine(
-            degrees=0, 
+            degrees=15,             # Rotación aleatoria
             translate=(0.15, 0.15),  # Mayor traslación 
             scale=(0.85, 1.15),      # Mayor variación de escala
-            shear=5                  # Añadido: distorsión de perspectiva
+            shear=2                 # Añadido: distorsión de perspectiva
         ),
         
         transforms.ToTensor(),
@@ -193,3 +199,29 @@ if __name__ == '__main__':
     print(f"   Train Accuracy: {train_acc * 100:.2f}%")
     print(f"   Validation Accuracy: {val_acc * 100:.2f}%")
     print(f"Temps total: {time.time() - start_time:.2f} segons")
+
+"""Resultados: 
+Iniciant l'entrenament...
+Època 1[348.08s] Accuracy: 62.32%
+Tiempo restant: 1440.16 segons
+Nou millor model guardat amb 62.32% de accuracy de validació
+Època 2[287.89s] Accuracy: 73.91%                                                                          
+Tiempo restant: 1152.14 segons
+Nou millor model guardat amb 73.91% de accuracy de validació
+Època 3[288.52s] Accuracy: 74.64%                                                                          
+Tiempo restant: 863.51 segons
+Nou millor model guardat amb 74.64% de accuracy de validació
+Època 4[283.84s] Accuracy: 73.19%                                                                          
+Època 4[283.84s] Accuracy: 73.19%
+Tiempo restant: 579.56 segons
+Època 5[289.65s] Accuracy: 70.29%
+Tiempo restant: 289.81 segons
+
+Train (subset) Accuracy: 79.54%
+Validation (final) Accuracy: 74.64%
+
+Final Metrics:
+   Train Accuracy: 79.54%
+   Validation Accuracy: 74.64%
+Temps total: 1834.49 segons
+"""
