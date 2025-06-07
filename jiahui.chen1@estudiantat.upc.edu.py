@@ -211,7 +211,6 @@ def load_best_model(path, num_classes, device):
 def main():
     # Set random seeds for reproducibility
     torch.manual_seed(123)
-    random.seed(123)
     np.random.seed(123)
     start_time = time.time()
     
@@ -242,23 +241,28 @@ def main():
     balanced_indices = []
     
     # Obtain indices grouped by class
-    class_indices = {}
+    from collections import defaultdict
+
+    # Agrupar índices por clase
+    class_indices = defaultdict(list)
     for idx, (_, label) in enumerate(full_dataset):
-        if label not in class_indices:
-            class_indices[label] = []
         class_indices[label].append(idx)
-    
-    # Take samples_per_class random samples from each class
-    # or all if there are fewer available
-    for label, indices in class_indices.items():
-        if len(indices) <= samples_per_class:
-            balanced_indices.extend(indices)
-            print(f"Clase {class_names[label]}: tomando todas las {len(indices)} muestras disponibles")
-        else:
-            sampled_indices = random.sample(indices, samples_per_class)
-            balanced_indices.extend(sampled_indices)
-            print(f"Clase {class_names[label]}: tomando {samples_per_class} muestras aleatorias de {len(indices)}")
-    
+
+    # Asegurar orden de muestreo
+    sorted_labels = sorted(class_indices.keys())
+
+    # Setear semilla
+    random.seed(123)
+    torch.manual_seed(123)
+    np.random.seed(123)
+
+    # Sampling ordenado y determinista
+    balanced_indices = []
+    for label in sorted_labels:
+        indices = class_indices[label]
+        sampled = random.sample(indices, min(len(indices), samples_per_class))
+        balanced_indices.extend(sampled)
+
     # Create a subset with balanced classes
     balanced_subset = Subset(full_dataset, balanced_indices)
     
@@ -280,7 +284,8 @@ def main():
     
     # Reduce num_workers to avoid potential issues
     num_workers = max(1, num_core-2)
-    
+    g = torch.Generator()
+    g.manual_seed(123)
     dataloader = DataLoader(dataset, 
                            batch_size=batch_size,
                            shuffle=True,  # Shuffle en lugar de sampler
@@ -329,7 +334,7 @@ def main():
         running_loss = 0.0
         
         for i, (images, labels) in enumerate(loop):
-            if time.time() - start_time > max_total_time:
+            if time.time() - start_time > max_total_time + 60:
                 print("Temps màxim assolit. Fi de l'entrenament")
                 break
             

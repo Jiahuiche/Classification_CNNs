@@ -66,7 +66,7 @@ class ConvNet(nn.Module):
             nn.BatchNorm1d(128),
             nn.ReLU(inplace=True),
             nn.Dropout(0.2),
-            nn.Linear(256, num_classes)
+            nn.Linear(128, num_classes)
         )
     def forward(self, x):
         x = self.features(x)  # Pasa por las capas convolucionales
