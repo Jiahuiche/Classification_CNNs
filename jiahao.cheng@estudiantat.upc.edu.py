@@ -20,7 +20,7 @@ if __name__ == "__main__":
     torch.manual_seed(123)
     np.random.seed(123)
 # ==================== DEFINICIÓ DEL MODEL ====================
-class ConvNet(nn.Module):
+'''class ConvNet(nn.Module):
     """
     Model de xarxa neuronal convolucional per a classificació d'imatges 28x28.
     
@@ -71,6 +71,115 @@ class ConvNet(nn.Module):
     def forward(self, x):
         x = self.features(x)  # Pasa por las capas convolucionales
         x = self.classifier(x)  # Pasa por la MLP
+        return x'''
+class ConvNet(nn.Module):
+    """
+    Model de xarxa neuronal convolucional per a classificació d'imatges 28x28.
+    
+    Estructura:
+    - Dos blocs convolucionals amb BatchNorm i MaxPool
+    - Capes completament connectades amb dropout
+    """
+    def __init__(self, num_classes):
+        super().__init__()
+        # First convolutional block with residual connection
+        self.conv1_1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)
+        self.bn1_1 = nn.BatchNorm2d(32)
+        self.conv1_2 = nn.Conv2d(32, 32, kernel_size=3, padding=1)
+        self.bn1_2 = nn.BatchNorm2d(32)
+        self.pool1 = nn.MaxPool2d(2, 2)
+        self.dropout1 = nn.Dropout2d(0.3)
+        
+        # Second convolutional block with residual connection
+        self.conv2_1 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.bn2_1 = nn.BatchNorm2d(64)
+        self.conv2_2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
+        self.bn2_2 = nn.BatchNorm2d(64)
+        # Projection shortcut for residual connection (to match dimensions)
+        self.shortcut = nn.Conv2d(32, 64, kernel_size=1)
+        self.bn_shortcut = nn.BatchNorm2d(64)
+        self.pool2 = nn.MaxPool2d(2, 2)
+        self.dropout2 = nn.Dropout2d(0.3)
+        
+        # Third convolutional block with increased channels
+        self.conv3_1 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.bn3_1 = nn.BatchNorm2d(128)
+        self.conv3_2 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+        self.bn3_2 = nn.BatchNorm2d(128)
+        self.pool3 = nn.MaxPool2d(2, 2)
+        self.dropout3 = nn.Dropout2d(0.3)
+        
+        # Fourth convolutional block
+        self.conv4_1 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
+        self.bn4_1 = nn.BatchNorm2d(256)
+        '''self.pool4 = nn.MaxPool2d(2, 2)
+        self.dropout4 = nn.Dropout2d(dropout_rate)'''
+        
+        # Global pooling
+        self.global_pool = nn.AdaptiveAvgPool2d(1)
+        
+        # Fully connected layers
+        self.fc1 = nn.Linear(256, 512)
+        self.bn_fc1 = nn.BatchNorm1d(512)
+        self.fc_dropout1 = nn.Dropout(0.5)
+        self.fc2 = nn.Linear(512, 256)
+        self.bn_fc2 = nn.BatchNorm1d(256)
+        self.fc_dropout2 = nn.Dropout(0.5 * 0.8)
+        self.fc3 = nn.Linear(256, num_classes)
+        
+        # Attention mechanism for better feature focus
+        self.attention = nn.Sequential(
+            nn.Conv2d(128, 1, kernel_size=1),
+            nn.Sigmoid()
+        )
+        
+    def forward(self, x):
+        # First block with residual connection
+        x = torch.nn.functional.relu(self.bn1_1(self.conv1_1(x)))
+        x = self.bn1_2(self.conv1_2(x))
+        x = torch.nn.functional.relu(x)
+        x = self.pool1(x)
+        x = self.dropout1(x)
+        
+        # Second block with residual connection
+        identity2 = x
+        x = torch.nn.functional.relu(self.bn2_1(self.conv2_1(x)))
+        x = self.bn2_2(self.conv2_2(x))
+        identity2 = self.bn_shortcut(self.shortcut(identity2))
+        x = torch.nn.functional.relu(x + identity2)
+        x = self.pool2(x)
+        x = self.dropout2(x)
+        
+        # Third block with attention mechanism
+        x = torch.nn.functional.relu(self.bn3_1(self.conv3_1(x)))
+        x = torch.nn.functional.relu(self.bn3_2(self.conv3_2(x)))
+        
+        # Apply attention
+        attention_weights = self.attention(x)
+        x = x * attention_weights
+        
+        x = self.pool3(x)
+        x = self.dropout3(x)
+        
+        # Fourth block
+        x = torch.nn.functional.relu(self.bn4_1(self.conv4_1(x)))
+        '''x = torch.nn.functional.relu(self.bn4_2(self.conv4_2(x)))
+        x = self.pool4(x)
+        x = self.dropout4(x)'''
+        
+        # Global pooling
+        x = self.global_pool(x)
+        
+        # Flatten
+        x = x.view(x.size(0), -1)
+        
+        # Fully connected layers
+        x = torch.nn.functional.relu(self.bn_fc1(self.fc1(x)))
+        x = self.fc_dropout1(x)
+        x = torch.nn.functional.relu(self.bn_fc2(self.fc2(x)))
+        x = self.fc_dropout2(x)
+        x = self.fc3(x)
+        
         return x
 
 # ==================== FUNCIONS D'ENTRENAMENT ====================
@@ -330,7 +439,7 @@ def main():
         # Entrenar
         train_loss, train_acc, time_exceeded, best_partial_val_acc, best_partial_val_loss = train_epoch(
             model, train_loader, criterion, optimizer, device, start_time, time_limit,
-            validation_interval=100, val_loader=val_loader, scheduler=scheduler, global_best_val_acc=global_best_val_acc
+            validation_interval=50, val_loader=val_loader, scheduler=scheduler, global_best_val_acc=global_best_val_acc
             )
         if best_partial_val_acc > global_best_val_acc:
             global_best_val_acc = best_partial_val_acc
