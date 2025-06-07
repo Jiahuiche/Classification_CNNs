@@ -317,8 +317,6 @@ def main():
     model_save_path = "best_model.pth"
     
     print(f"Preprocess completat. Iniciant l'entrenament del model amb {num_classes} classes.")
-    print(f"Les classes han estat balancejades manualment ({samples_per_class} por classe)")
-    print("Using enhanced CNN architecture with 4 convolutional blocks and residual connections")
     
     while True:
         start_epoch = time.time()
@@ -357,12 +355,6 @@ def main():
         
         avg_loss = running_loss / len(dataloader)
         print(f"Epoch {epoch} - Average Loss: {avg_loss:.4f}")
-            
-        # Show class distribution for this epoch (verify balancing)
-        if epoch % 5 == 0:  # Only show every 5 epochs to avoid clutter
-            print("Class distribution in this epoch:")
-            for i, name in enumerate(class_names):
-                print(f"{name}: {epoch_class_samples[i]} samples")
                 
         # Validation per epoch
         val_acc = evaluate(model, val_loader, f"Validació (després de la època {epoch}[{time.time() - start_epoch:.2f}s])", device)
