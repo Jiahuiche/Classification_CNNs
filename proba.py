@@ -16,7 +16,9 @@ if __name__ == "__main__":
     torch.set_num_threads(torch.get_num_threads())
     print(f"Utilitzant {torch.get_num_threads()} fils de CPU")
     print(f"Utilitzant dispositiu: {device}")
-
+    # ---------- Reproducibilitat ----------
+    torch.manual_seed(123)
+    np.random.seed(123)
 # ==================== DEFINICIÓ DEL MODEL ====================
 class ConvNet(nn.Module):
     """
@@ -25,10 +27,6 @@ class ConvNet(nn.Module):
     Estructura:
     - Dos blocs convolucionals amb BatchNorm i MaxPool
     - Capes completament connectades amb dropout
-    Entrades:
-    - Imatges de dimensions [batch_size, 1, 28, 28]
-    Sortides:
-    - Prediccions de classe de dimensions [batch_size, num_classes]
     """
     def __init__(self, num_classes=10):
         super(ConvNet, self).__init__()
@@ -83,7 +81,7 @@ def train_epoch(model, train_loader, criterion, optimizer, device, start_time, t
         train_loader: DataLoader per a les dades d'entrenament
         criterion: Funció de pèrdua
         optimizer: Optimitzador per actualitzar els pesos
-        device: Dispositiu on s'executa l'entrenament (CPU/CUDA)
+        device: Dispositiu on s'executa l'entrenament (CPU)
         start_time: Temps d'inici del procés d'entrenament
         time_limit: Temps màxim en segons per l'entrenament complet
         
@@ -242,7 +240,6 @@ def plot_confusion_matrix(model, test_loader, device, class_names=None):
     plt.xlabel('Predit')
     plt.ylabel('Real')
     plt.title('Matriu de Confusió')
-    plt.savefig('matriu_confusio.png')
     plt.show()
 
 # ==================== FUNCIÓ PRINCIPAL ====================
@@ -260,14 +257,17 @@ def main():
     num_epochs = 10
     
     # Definir transformacions
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))  # Mitjana i desviació estàndard de MNIST
-    ])
+    ttransform = transforms.Compose([
+    transforms.Grayscale(),  # Convertir a escala de grises si las imágenes son a color
+    transforms.Resize((28, 28)),  # Asegurar que todas las imágenes sean 28x28
+    transforms.ToTensor(),
+    transforms.Normalize((0.5,), (0.5,))  # Normalización genérica
+])
+
     
     # Carregar datasets
-    train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform)
-    test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transform)
+    train_dataset = datasets.ImageFolder(root='./data/train', train=True, download=True, transform=transform)
+    test_dataset = datasets.ImageFolder(root='./data/validation', train=False, download=True, transform=transform)
     
     # Crear data loaders sense multiprocessament
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -340,10 +340,18 @@ def main():
     
     # Desar model final
     print(f"Temps total d'execució: {time.time() - start_time:.1f} segons")
-    torch.save(model.state_dict(), 'model_cnn.pth')
+
+    def load_best_model(path, num_classes):
+        """Carga el mejor modelo guardado."""
+        model = ElVostreModel(num_classes)
+        model.load_state_dict(torch.load(path))
+        model = model.to(device)
+        return model
+
+    model = load_best_model(model_save_path, num_classes)
     
     # Generar matriu de confusió
-    noms_classes = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']  # Per MNIST
+    noms_classes = train_dataset.classes
     print("Generant matriu de confusió...")
     plot_confusion_matrix(model, test_loader, device, noms_classes)
     
@@ -366,7 +374,6 @@ def main():
         plt.legend()
         
         plt.tight_layout()
-        plt.savefig('resultats_entrenament.png')
         plt.show()
 
 if __name__ == "__main__":
