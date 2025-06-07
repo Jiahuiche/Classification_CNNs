@@ -15,51 +15,46 @@ from torchvision.transforms import functional as F
 class AdvancedAugmentation:
     """Custom data augmentation for our drawing dataset"""
     
-    def __init__(self, prob=0.5):
+    def __init__(self, prob=0.7):  # Changed default probability to 1.0 (100%)
         self.prob = prob
     
     def __call__(self, img):
-        # Apply transformations with probability
-        if random.random() < self.prob:
-            # Random rotation (± 20 degrees)
-            angle = random.uniform(-20, 20)
-            img = F.rotate(img, angle, fill=0)
+        # Apply all transformations with 100% probability by forcing prob to 1.0
+        # Random rotation (± 20 degrees) - Always apply
+        angle = random.uniform(-20, 20)
+        img = F.rotate(img, angle, fill=0)
         
-        if random.random() < self.prob:
-            # Random shifts (± 15%)
-            shift_x = random.uniform(-0.15, 0.15)
-            shift_y = random.uniform(-0.15, 0.15)
-            img = F.affine(img, angle=0, translate=[shift_x, shift_y], 
-                           scale=1.0, shear=0, fill=0)
+        # Random shifts (± 15%) - Always apply
+        shift_x = random.uniform(-0.15, 0.15)
+        shift_y = random.uniform(-0.15, 0.15)
+        img = F.affine(img, angle=0, translate=[shift_x, shift_y], 
+                        scale=1.0, shear=0, fill=0)
         
-        if random.random() < 0.3:
-            # Random erasing (simulates occlusions)
-            h, w = img.shape[1:]
-            area = h * w
-            target_area = random.uniform(0.02, 0.15) * area
-            aspect_ratio = random.uniform(0.3, 1/0.3)
-            
-            h_rect = int(np.sqrt(target_area * aspect_ratio))
-            w_rect = int(np.sqrt(target_area / aspect_ratio))
-            
-            if h_rect < h and w_rect < w:
-                x1 = random.randint(0, h - h_rect)
-                y1 = random.randint(0, w - w_rect)
-                mask = torch.ones_like(img)
-                mask[:, x1:x1+h_rect, y1:y1+w_rect] = 0
-                img = img * mask
+        # Random erasing (simulates occlusions) - Always apply
+        h, w = img.shape[1:]
+        area = h * w
+        target_area = random.uniform(0.02, 0.15) * area
+        aspect_ratio = random.uniform(0.3, 1/0.3)
         
-        if random.random() < 0.2:
-            # Add slight Gaussian noise
-            noise = torch.randn_like(img) * 0.05
-            img = torch.clamp(img + noise, 0, 1)
-            
-        if random.random() < 0.2:
-            # Adjust brightness/contrast
-            brightness = random.uniform(-0.2, 0.2)
-            contrast = random.uniform(0.8, 1.2)
-            img = F.adjust_brightness(img, 1 + brightness)
-            img = F.adjust_contrast(img, contrast)
+        h_rect = int(np.sqrt(target_area * aspect_ratio))
+        w_rect = int(np.sqrt(target_area / aspect_ratio))
+        
+        if h_rect < h and w_rect < w:
+            x1 = random.randint(0, h - h_rect)
+            y1 = random.randint(0, w - w_rect)
+            mask = torch.ones_like(img)
+            mask[:, x1:x1+h_rect, y1:y1+w_rect] = 0
+            img = img * mask
+        
+        # Add slight Gaussian noise - Always apply
+        noise = torch.randn_like(img) * 0.05
+        img = torch.clamp(img + noise, 0, 1)
+        
+        # Adjust brightness/contrast - Always apply
+        brightness = random.uniform(-0.2, 0.2)
+        contrast = random.uniform(0.8, 1.2)
+        img = F.adjust_brightness(img, 1 + brightness)
+        img = F.adjust_contrast(img, contrast)
         
         return img
 
@@ -220,7 +215,7 @@ def main():
     print(f"Using device: {device}")
     
     # Training parameters - adjusted for better performance
-    lr = 0.0005  # Slightly lower learning rate for the more complex model
+    lr = 0.0001  # Slightly lower learning rate for the more complex model
     batch_size = 64
     max_total_time = 600  # 10 minutes
     
@@ -265,8 +260,8 @@ def main():
     print(f"Dataset original: {len(full_dataset)} imágenes")
     print(f"Dataset balanceado: {len(balanced_subset)} imágenes")
     
-    # Create augmentation function
-    augmentation = AdvancedAugmentation(prob=0.7)
+    # Create augmentation function with 100% probability
+    augmentation = AdvancedAugmentation(prob=1.0)  # Ensure 100% probability
     
     # Apply augmentation to the balanced subset
     dataset = AugmentedDataset(balanced_subset, augmentation)
@@ -298,10 +293,10 @@ def main():
     model = EnhancedCNNModel(num_classes).to(device)
     
     # Optimizer settings that worked well in the previous version
-    weight_decay = 1e-5
+    weight_decay = 0.0001
     
     # Set up optimizer with weight decay to prevent overfitting
-    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     
     # Add learning rate scheduler for better convergence
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
@@ -319,6 +314,7 @@ def main():
     print(f"Preprocess completat. Iniciant l'entrenament del model amb {num_classes} classes.")
     print(f"Les classes han estat balancejades manualment ({samples_per_class} por classe)")
     print("Using enhanced CNN architecture with 4 convolutional blocks and residual connections")
+    print("Data augmentation applied with 100% probability to all training samples")
     
     while True:
         start_epoch = time.time()
