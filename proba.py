@@ -20,13 +20,13 @@ if __name__ == "__main__":
 # ==================== DEFINICIÓ DEL MODEL ====================
 class ConvNet(nn.Module):
     """
-    Model de xarxa neuronal convolucional per a classificació d'imatges 28x28.
+    Model de xarxa neuronal convolucional per a classificació d'imatges.
     
     Estructura:
     - Dos blocs convolucionals amb BatchNorm i MaxPool
     - Capes completament connectades amb dropout
     Entrades:
-    - Imatges de dimensions [batch_size, 1, 28, 28]
+    - Imatges de dimensions [batch_size, 1, H, W] (grayscale)
     Sortides:
     - Prediccions de classe de dimensions [batch_size, num_classes]
     """
@@ -35,7 +35,7 @@ class ConvNet(nn.Module):
         
         # Primer bloc convolucional
         self.conv1 = nn.Sequential(
-            nn.Conv2d(1, 16, kernel_size=3, padding=1),
+            nn.Conv2d(1, 16, kernel_size=3, padding=1),  # Mantenim 1 canal d'entrada per grayscale
             nn.BatchNorm2d(16),
             nn.ReLU(),
             nn.MaxPool2d(2)
@@ -49,12 +49,37 @@ class ConvNet(nn.Module):
             nn.MaxPool2d(2)
         )
         
-        # Capes completament connectades
+        # Tercer bloc convolucional per més capacitat
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+        
+        '''# Capes completament connectades - ajustades per imatges més grans
         self.fc = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(32 * 7 * 7, 64),
+            nn.AdaptiveAvgPool1d(1024),  # Pooling adaptatiu per manejar diferentes mides
+            nn.Linear(1024, 256),
             nn.ReLU(),
             nn.Dropout(0.5),
+            nn.Linear(256, 64),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(64, num_classes)
+        )'''
+        
+        # Alternativa més robusta per la capa FC
+        self.adaptive_pool = nn.AdaptiveAvgPool2d((4, 4))
+        self.fc_alt = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(64 * 4 * 4, 256),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(256, 64),
+            nn.ReLU(),
+            nn.Dropout(0.3),
             nn.Linear(64, num_classes)
         )
         
@@ -63,14 +88,19 @@ class ConvNet(nn.Module):
         Pas endavant del model.
         
         Args:
-            x: Tensor d'entrada de dimensions [batch_size, 1, 28, 28]
+            x: Tensor d'entrada de dimensions [batch_size, 1, H, W]
         
         Returns:
             Tensor de sortida amb les prediccions
         """
         x = self.conv1(x)
         x = self.conv2(x)
-        x = self.fc(x)
+        x = self.conv3(x)
+        
+        # Utilitzar pooling adaptatiu per manejar diferents mides d'imatge
+        x = self.adaptive_pool(x)
+        x = self.fc_alt(x)
+        
         return x
 
 # ==================== FUNCIONS D'ENTRENAMENT ====================
@@ -259,22 +289,29 @@ def main():
     learning_rate = 0.001
     num_epochs = 10
     
-    # Definir transformacions
+    # Definir transformacions - IMPORTANT: convertir a grayscale
     transform = transforms.Compose([
+        transforms.Grayscale(num_output_channels=1),  # Convertir RGB a grayscale
+        transforms.Resize((28, 28)),  # Redimensionar si és necessari
         transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))  # Mitjana i desviació estàndard de MNIST
+        transforms.Normalize((0.5,), (0.5,))  # Normalització per grayscale
     ])
     
     # Carregar datasets
-    train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform)
-    test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transform)
+    train_dataset = datasets.ImageFolder(root='data/train', transform=transform)
+    test_dataset = datasets.ImageFolder(root='data/validation', transform=transform)
+    
+    # Obtenir el nombre de classes del dataset
+    num_classes = len(train_dataset.classes)
+    print(f"Nombre de classes detectades: {num_classes}")
+    print(f"Classes: {train_dataset.classes}")
     
     # Crear data loaders sense multiprocessament
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
-    # Inicialitzar model
-    model = ConvNet()
+    # Inicialitzar model amb el nombre correcte de classes
+    model = ConvNet(num_classes=num_classes)
     model = model.to(device)
     
     # Funció de pèrdua i optimitzador
