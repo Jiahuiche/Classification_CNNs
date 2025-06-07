@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 import matplotlib.pyplot as plt
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import time
@@ -65,8 +65,8 @@ class ConvNet(nn.Module):
             nn.Linear(256, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(inplace=True),
-            nn.Dropout(0.2),
-            nn.Linear(256, num_classes)
+            #nn.Dropout(0.2),
+            nn.Linear(128, num_classes)
         )
     def forward(self, x):
         x = self.features(x)  # Pasa por las capas convolucionales
@@ -288,8 +288,11 @@ def main():
     train_dataset = datasets.ImageFolder(root='data/train', transform=transform_data_augmentation)
     test_dataset = datasets.ImageFolder(root='data/validation', transform=transform_b)
     
+    noms_classes = train_dataset.classes
+    num_classes = len(noms_classes)
+
     # Crear data loaders sense multiprocessament
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size,shuffle=True)
     val_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
     ##############################################################################################
@@ -302,9 +305,6 @@ def main():
     ##############################################################################################
 
     # Inicialitzar model
-    noms_classes = train_dataset.classes
-    num_classes = len(noms_classes)
-
     model = ConvNet(num_classes)
     model = model.to(device)
     
